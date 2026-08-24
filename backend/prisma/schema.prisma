@@ -1,0 +1,82 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id            String   @id @default(cuid())
+  maxSeats      Int      @default(100)
+  buyInAmount   Int      // in cents
+  status        RoomStatus @default(WAITING)
+  poolAmount    Int      @default(0)
+  timerEndsAt   DateTime?
+  winnerId      String?
+  winner        Player?  @relation("WinnerRoom", fields: [winnerId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  players       Player[]
+  transactions  Transaction[]
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Player {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique
+  roomId        String
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  buyIn         Int      // in cents
+  joinedAt      DateTime @default(now())
+  isWinner      Boolean  @default(false)
+  
+  @@unique([roomId, walletAddress])
+  @@index([walletAddress])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  roomId        String
+  room          Room     @relation(fields: [roomId], references: [id])
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id])
+  amount        Int      // in cents
+  type          TransactionType
+  txHash        String?
+  status        TransactionStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+  
+  @@index([roomId])
+  @@index([playerId])
+  @@index([status])
+}
+
+enum RoomStatus {
+  WAITING
+  FULL
+  COUNTDOWN
+  DRAWING
+  COMPLETED
+  EXPIRED
+}
+
+enum TransactionType {
+  BUY_IN
+  WINNING_PAYOUT
+  FEE
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
